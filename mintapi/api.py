@@ -43,7 +43,7 @@ def reverse_credit_amount(row):
     return amount if row['isDebit'] else -amount
 
 
-def get_web_driver(email, password):
+def get_web_driver(email, password, code_provider):
     driver = Chrome()
 
     driver.get("https://www.mint.com")
@@ -55,9 +55,19 @@ def get_web_driver(email, password):
     driver.find_element_by_id("ius-sign-in-submit-btn").submit()
 
     # Wait until logged in, just in case we need to deal with MFA.
+
     while not driver.current_url.startswith(
             'https://mint.intuit.com/overview.event'):
-        time.sleep(1)
+        time.sleep(2)
+        try:
+            mfa_ele = driver.find_element_by_id("ius-mfa-option-email")
+            mfa_ele.click()
+            driver.find_element_by_id("ius-mfa-options-submit-btn").click()
+            verification_code = code_provider()
+            driver.find_element_by_id("ius-mfa-confirm-code").send_keys(verification_code)
+            driver.find_element_by_id("ius-mfa-otp-submit-btn").submit()
+        except:
+            pass
 
     # Wait until the overview page has actually loaded.
     driver.implicitly_wait(20)  # seconds
@@ -112,9 +122,9 @@ class Mint():
     token = None
     driver = None
 
-    def __init__(self, email=None, password=None):
+    def __init__(self, email=None, password=None, code_provider=None):
         if email and password:
-            self.login_and_get_token(email, password)
+            self.login_and_get_token(email, password, code_provider)
 
     @classmethod
     def create(cls, email, password):
@@ -172,11 +182,11 @@ class Mint():
     def post(self, url, **kwargs):
         return self.driver.request('POST', url, **kwargs)
 
-    def login_and_get_token(self, email, password):
+    def login_and_get_token(self, email, password, code_provider):
         if self.token and self.driver:
             return
 
-        self.driver = get_web_driver(email, password)
+        self.driver = get_web_driver(email, password, code_provider)
         self.token = self.get_token()
 
     def get_token(self):
